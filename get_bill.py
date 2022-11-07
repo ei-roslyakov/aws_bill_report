@@ -9,9 +9,6 @@ import loguru
 
 import pandas as pd
 
-from office365.runtime.auth.client_credential import ClientCredential
-from office365.sharepoint.client_context import ClientContext
-
 logger = loguru.logger
 
 
@@ -87,9 +84,6 @@ def get_bill_by_period(ce_client, start: str, end: str, project="NoN") -> list:
 
 def get_date_range(year: str, month: str):
 
-    # year = 2021
-    # month = 11
-
     def check_month(month):
         if month == "11" or month == "12":
             return ""
@@ -124,8 +118,8 @@ def get_date_range(year: str, month: str):
         return {"start": start, "end": end}
 
     if month != "01":
-        start = f"{year}-{check_month(month)}{int(month) - 1}-01"
-        end = f"{year}-{month}-01"
+        start = f"{year}-{check_month(month)}{int(month)}-01"
+        end = f"{year}-{check_month(month)}{int(month) + 1}-01"
 
         return {"start": start, "end": end}
 
