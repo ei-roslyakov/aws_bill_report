@@ -14,7 +14,7 @@ python3 ./get_bill.py
 ### Script arguments
 | Name         | Description                                       | Default    |
 |--------------|---------------------------------------------------|------------|
-| `--profile`  | AWS profile to get access to the Cost Explorer    | default    |
+| `--profile`  | AWS profile to get access to assume role  | default    |
 | `--month`    | The report will be created for this month         | current   |
 | `--year`     | The report will be created for this year          | current |
 | `--bucket-name`     | The S3 bucket to save the report          | OS env S3_BUCKET_NAME default: rei-data|
