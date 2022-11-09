@@ -54,6 +54,14 @@ def parse_args():
         help="S3 bucket key to save the report",
     )
     parsers.add_argument(
+        "--table-name",
+        required=False,
+        type=str,
+        default=os.environ.get("DYNAMODB_TABLE", "SU-bill"),
+        action="store",
+        help="The DynamoDB table name to save data",
+    )
+    parsers.add_argument(
         "--month",
         required=False,
         type=str,
@@ -368,7 +376,8 @@ def main(table_name):
 
 
 if __name__ == "__main__":
-    TABLE_NAME = "SU-bill"
+    args = parse_args()
+    TABLE_NAME = args.table_name
     exist_table = check_table_exists(dynamodb_resource(), TABLE_NAME)
     if not exist_table:
         create_table(dynamodb_resource(), TABLE_NAME)
