@@ -9,10 +9,8 @@ import loguru
 
 import pandas as pd
 import calendar
-from boto3.dynamodb.conditions import Key, Attr
 
 import datetime
-
 
 logger = loguru.logger
 
@@ -27,7 +25,7 @@ def parse_args():
         "--profile",
         required=False,
         type=str,
-        default="default",
+        default=os.environ.get("AWS_PROFILE", "default"),
         action="store",
         help="AWS Profile",
     )
@@ -35,18 +33,39 @@ def parse_args():
         "--region",
         required=False,
         type=str,
-        default="eu-west-2",
+        default=os.environ.get("AWS_REGION", "eu-west-2"),
         action="store",
         help="AWS region",
     )
     parsers.add_argument(
-        "--month", required=False, type=str, default="01", action="store", help="Month"
+        "--bucket-name",
+        required=False,
+        type=str,
+        default=os.environ.get("S3_BUCKET_NAME", "rei-data"),
+        action="store",
+        help="S3 bucket to save the report",
+    )
+    parsers.add_argument(
+        "--bucket-key",
+        required=False,
+        type=str,
+        default=os.environ.get("S3_BUCKET_KEY", "bill_report"),
+        action="store",
+        help="S3 bucket key to save the report",
+    )
+    parsers.add_argument(
+        "--month",
+        required=False,
+        type=str,
+        default=datetime.datetime.now().strftime("%m"),
+        action="store",
+        help="Month",
     )
     parsers.add_argument(
         "--year",
         required=False,
         type=str,
-        default="2022",
+        default=datetime.datetime.now().strftime("%Y"),
         action="store",
         help="The beginning of the time period",
     )
@@ -78,6 +97,13 @@ def dynamodb_client():
     dynamodb_client = boto3.client("dynamodb")
 
     return dynamodb_client
+
+
+def s3_client():
+
+    s3_client = boto3.client("s3")
+
+    return s3_client
 
 
 def dynamodb_resource():
@@ -166,13 +192,13 @@ def create_table(dynamodb, table_name: str):
             ],
             ProvisionedThroughput={"ReadCapacityUnits": 1, "WriteCapacityUnits": 1},
         )
+        logger.info("CREATED")
+        return response
     except ClientError as err:
         logger.error(
             f"Something went wrong code: {err.response['Error']['Code']} \n message: {err.response['Error']['Message']}"
         )
         raise
-
-    logger.info(f"CREATED")
 
 
 def put_data(dynamodb, project_name, project_id, month, bill, table):
@@ -220,8 +246,8 @@ def scan_db(dynamodb, table, scan_kwargs=None):
     while not complete:
         try:
             response = table.scan(**scan_kwargs)
-        except botocore.exceptions.ClientError as error:
-            raise Exception("Error quering DB: {}".format(error))
+        except Exception as e:
+            raise Exception(f"Error quering DB: {e}")
 
         records.extend(response.get("Items", []))
         next_key = response.get("LastEvaluatedKey")
@@ -231,17 +257,20 @@ def scan_db(dynamodb, table, scan_kwargs=None):
     return records
 
 
-def make_report(year, data):
+def make_report(s3_client, s3_bucket, s3_key, year, data):
     df = pd.DataFrame(data)
 
+    report_file_name = (
+        f"bill_report_{datetime.datetime.now().strftime('%Y-%m-%d')}.xlsx"
+    )
+
     try:
-        with pd.ExcelWriter(f"report.xlsx", engine="xlsxwriter") as writer:
+        with pd.ExcelWriter(f"{report_file_name}", engine="xlsxwriter") as writer:
             df.to_excel(writer, sheet_name=year, index=False)
             for column in df:
                 col_idx = df.columns.get_loc(column)
                 writer.sheets[year].set_column(col_idx, col_idx, 15)
 
-            # print(range(len(data)))
             workbook = writer.book
             worksheet = writer.sheets[year]
             position = 0
@@ -264,6 +293,17 @@ def make_report(year, data):
                 chart.set_legend({"position": "none"})
                 worksheet.insert_chart(f"O{20 + position}", chart)
                 position += 2
+        try:
+            s3_client.upload_file(
+                report_file_name, s3_bucket, f"{s3_key}/{report_file_name}"
+            )
+            logger.info(
+                f"The file {report_file_name} has been uploaded to the s3://{s3_bucket}/{s3_key}/{report_file_name}"
+            )
+        except Exception as e:
+            logger.exception(
+                f"Something went wrong with uploading file {report_file_name}: {e}"
+            )
 
     except Exception as e:
         logger.exception(f"Something went wrong {e}")
@@ -322,7 +362,7 @@ def main(table_name):
 
     sort_data = sort_data_by_month(all_data)
 
-    make_report(args.year, sort_data)
+    make_report(s3_client(), args.bucket_name, args.bucket_key, args.year, sort_data)
 
     logger.info("Application finished")
 
