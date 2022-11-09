@@ -11,6 +11,8 @@ import pandas as pd
 import calendar
 from boto3.dynamodb.conditions import Key, Attr
 
+import datetime
+
 
 logger = loguru.logger
 
@@ -132,7 +134,7 @@ def get_date_range(year: str, month: str):
     if month == "12":
         start = f"{year}-{month}-01"
         end = f"{int(year) + 1}-01-01"
-    elif month == "12":
+    elif month == "11" or month == "10" or month == "09":
         start = start = f"{year}-{month}-01"
         end = f"{year}-{int(month) + 1}-01"
     else:
@@ -182,7 +184,7 @@ def put_data(dynamodb, project_name, project_id, month, bill, table):
                 "Project": project_name,
                 "Id": project_id,
             },
-            UpdateExpression=f"SET {calendar.month_name[int(month)]} = :m",
+            UpdateExpression=f"SET {calendar.month_abbr[int(month)]} = :m",
             ExpressionAttributeValues={":m": bill},
             ReturnValues="UPDATED_NEW",
         )
@@ -229,6 +231,62 @@ def scan_db(dynamodb, table, scan_kwargs=None):
     return records
 
 
+def make_report(year, data):
+    df = pd.DataFrame(data)
+
+    try:
+        with pd.ExcelWriter(f"report.xlsx", engine="xlsxwriter") as writer:
+            df.to_excel(writer, sheet_name=year, index=False)
+            for column in df:
+                col_idx = df.columns.get_loc(column)
+                writer.sheets[year].set_column(col_idx, col_idx, 15)
+
+            # print(range(len(data)))
+            workbook = writer.book
+            worksheet = writer.sheets[year]
+            position = 0
+
+            for item in range(len(data)):
+
+                chart = workbook.add_chart({"type": "column"})
+                chart.add_series(
+                    {
+                        "categories": [f"{year}", 0, 2, 0, 15],
+                        "values": [f"{year}", 1 + item, 2, 1 + item, 15],
+                        "name": f"{df['Project'].values[item]}",
+                        "line": {"color": "red"},
+                    }
+                )
+                chart.set_x_axis({"name": "Month", "position_axis": "on_tick"})
+                chart.set_y_axis(
+                    {"name": "Price", "major_gridlines": {"visible": False}}
+                )
+                chart.set_legend({"position": "none"})
+                worksheet.insert_chart(f"O{20 + position}", chart)
+                position += 2
+
+    except Exception as e:
+        logger.exception(f"Something went wrong {e}")
+
+
+def sort_data_by_month(data):
+    sorted_data = []
+    for project in data:
+        project_info = {}
+        bill = {}
+        for k, v in project.items():
+            if k == "Project" or k == "Id":
+                project_info[k] = v
+            else:
+                bill[datetime.datetime.strptime(k, "%b").month] = v
+        bill = dict(sorted(bill.items()))
+        for k, v in bill.items():
+            project_info[k] = float(v)
+        sorted_data.append(project_info)
+
+    return sorted_data
+
+
 def main(table_name):
 
     logger.info("Application started")
@@ -259,6 +317,12 @@ def main(table_name):
             str(bill),
             table_name,
         )
+
+    all_data = scan_db(dynamodb_resource(), table_name)
+
+    sort_data = sort_data_by_month(all_data)
+
+    make_report(args.year, sort_data)
 
     logger.info("Application finished")
 
