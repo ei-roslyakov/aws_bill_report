@@ -15,9 +15,6 @@ import datetime
 logger = loguru.logger
 
 
-REPORT_FILE_NAME = "report"
-
-
 def parse_args():
     parsers = argparse.ArgumentParser()
 
