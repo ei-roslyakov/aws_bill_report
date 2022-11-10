@@ -359,13 +359,13 @@ def sns_notification(sns_client, name, recipient_address, region, create=True):
             logger.exception(f"Something went wrong {e}")
 
     try:
-        list_subscriptions =  sns.list_subscriptions_by_topic(
-            TopicArn=topic_arn
-        )
+        list_subscriptions = sns.list_subscriptions_by_topic(TopicArn=topic_arn)
     except Exception as e:
         logger.exception(f"Something went wrong {e}")
 
-    all_subscriptions = [item["Endpoint"] for item in list_subscriptions["Subscriptions"]]
+    all_subscriptions = [
+        item["Endpoint"] for item in list_subscriptions["Subscriptions"]
+    ]
 
     for item in recipient_address:
         if item not in all_subscriptions:
@@ -374,9 +374,11 @@ def sns_notification(sns_client, name, recipient_address, region, create=True):
                     TopicArn=topic_arn,
                     Protocol="email",
                     Endpoint=item,
-                    ReturnSubscriptionArn=True
+                    ReturnSubscriptionArn=True,
                 )
-                logger.info(f"The email {item} has been added to the {name} topic subscriptions")
+                logger.info(
+                    f"The email {item} has been added to the {name} topic subscriptions"
+                )
             except Exception as e:
                 logger.exception(f"Something went wrong {e}")
 
@@ -389,7 +391,7 @@ def publish_text_message(client, region, name, message):
         response = client.publish(
             TopicArn=topic_arn,
             Message=message,
-            Subject='Bill report status',
+            Subject="Bill report status",
         )
     except Exception as e:
         logger.exception(f"Something went wrong {e}")
@@ -402,9 +404,9 @@ def main(table_name):
 
     recipient_address = ["eugene.roslyakov@sigma.software"]
 
-    notification_setting = sns_notification(sns_client(), table_name, recipient_address, args.region)
-    
-    
+    notification_setting = sns_notification(
+        sns_client(), table_name, recipient_address, args.region
+    )
 
     projects_with_ids = get_projects_with_ids(dynamodb_resource(), table_name)
     date_range = get_date_range(args.year, args.month)
@@ -437,7 +439,12 @@ def main(table_name):
     sort_data = sort_data_by_month(all_data)
 
     make_report(s3_client(), args.bucket_name, args.bucket_key, args.year, sort_data)
-    publish_text_message(sns_client(), args.region, table_name, f"The report has been created and uploaded to the s3")
+    publish_text_message(
+        sns_client(),
+        args.region,
+        table_name,
+        f"The report has been created and uploaded to the s3",
+    )
     logger.info("Application finished")
 
 
