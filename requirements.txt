@@ -2,4 +2,3 @@ boto3
 loguru
 argparse
 pandas
-calendar
