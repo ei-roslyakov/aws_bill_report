@@ -111,6 +111,13 @@ def s3_client():
     return s3_client
 
 
+def sns_client():
+
+    sns_client = boto3.client("sns")
+
+    return sns_client
+
+
 def dynamodb_resource():
 
     dynamodb_resource = boto3.resource("dynamodb")
@@ -332,10 +339,72 @@ def sort_data_by_month(data):
     return sorted_data
 
 
+def sns_notification(sns_client, name, recipient_address, region, create=True):
+
+    account_id = boto3.client("sts").get_caller_identity()["Account"]
+    topic_arn = f"arn:aws:sns:{region}:{account_id}:{name}"
+    sns = sns_client
+    all_topics = sns.list_topics()
+
+    create_topic = True
+    for topic in all_topics["Topics"]:
+        if topic["TopicArn"] == topic_arn:
+            create_topic = False
+
+    if create_topic:
+        try:
+            topic = sns.create_topic(Name=name)
+            logger.info(f"The topic {name} has been created")
+        except Exception as e:
+            logger.exception(f"Something went wrong {e}")
+
+    try:
+        list_subscriptions =  sns.list_subscriptions_by_topic(
+            TopicArn=topic_arn
+        )
+    except Exception as e:
+        logger.exception(f"Something went wrong {e}")
+
+    all_subscriptions = [item["Endpoint"] for item in list_subscriptions["Subscriptions"]]
+
+    for item in recipient_address:
+        if item not in all_subscriptions:
+            try:
+                response = sns.subscribe(
+                    TopicArn=topic_arn,
+                    Protocol="email",
+                    Endpoint=item,
+                    ReturnSubscriptionArn=True
+                )
+                logger.info(f"The email {item} has been added to the {name} topic subscriptions")
+            except Exception as e:
+                logger.exception(f"Something went wrong {e}")
+
+
+def publish_text_message(client, region, name, message):
+    account_id = boto3.client("sts").get_caller_identity()["Account"]
+    topic_arn = f"arn:aws:sns:{region}:{account_id}:{name}"
+
+    try:
+        response = client.publish(
+            TopicArn=topic_arn,
+            Message=message,
+            Subject='Bill report status',
+        )
+    except Exception as e:
+        logger.exception(f"Something went wrong {e}")
+
+
 def main(table_name):
 
     logger.info("Application started")
     args = parse_args()
+
+    recipient_address = ["eugene.roslyakov@sigma.software"]
+
+    notification_setting = sns_notification(sns_client(), table_name, recipient_address, args.region)
+    
+    
 
     projects_with_ids = get_projects_with_ids(dynamodb_resource(), table_name)
     date_range = get_date_range(args.year, args.month)
@@ -368,7 +437,7 @@ def main(table_name):
     sort_data = sort_data_by_month(all_data)
 
     make_report(s3_client(), args.bucket_name, args.bucket_key, args.year, sort_data)
-
+    publish_text_message(sns_client(), args.region, table_name, f"The report has been created and uploaded to the s3")
     logger.info("Application finished")
 
 
