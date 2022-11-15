@@ -8,7 +8,6 @@ from botocore.exceptions import ClientError
 import loguru
 
 import pandas as pd
-import calendar
 
 import datetime
 
@@ -61,7 +60,7 @@ def parse_args():
     parsers.add_argument(
         "--month",
         required=False,
-        type=str,
+        type=int,
         default=datetime.datetime.now().strftime("%m"),
         action="store",
         help="Month",
@@ -140,26 +139,7 @@ def get_bill_by_period(ce_client, start: str, end: str, project="NoN") -> list:
 
 
 def get_date_range(year: str, month: str):
-    def check_month(month):
-        if month == "11" or month == "12":
-            return ""
-        else:
-            return "0"
-
-    suitable_value_for_month = [
-        "01",
-        "02",
-        "03",
-        "04",
-        "05",
-        "06",
-        "07",
-        "08",
-        "09",
-        "10",
-        "11",
-        "12",
-    ]
+    suitable_value_for_month = [*range(1, 13)]
 
     if month not in suitable_value_for_month:
         logger.exception(
@@ -170,14 +150,11 @@ def get_date_range(year: str, month: str):
     end = None
 
     if month == "12":
-        start = f"{year}-{month}-01"
+        start = f"{year}-{'%0.2d' % int(month)}-01"
         end = f"{int(year) + 1}-01-01"
-    elif month == "11" or month == "10" or month == "09":
-        start = start = f"{year}-{month}-01"
-        end = f"{year}-{int(month) + 1}-01"
     else:
-        start = start = f"{year}-{month}-01"
-        end = f"{year}-{check_month(month)}{int(month) + 1}-01"
+        start = start = f"{year}-{'%0.2d' % int(month)}-01"
+        end = f"{year}-{'%0.2d' % (int(month) + 1)}-01"
 
     return {"start": start, "end": end}
 
@@ -222,8 +199,11 @@ def put_data(dynamodb, project_name, project_id, month, bill, table):
                 "Project": project_name,
                 "Id": project_id,
             },
-            UpdateExpression=f"SET {calendar.month_abbr[int(month)]} = :m",
-            ExpressionAttributeValues={":m": bill},
+            UpdateExpression="set #monthnum = :monthbill",
+            ExpressionAttributeNames={"#monthnum": month},
+            ExpressionAttributeValues={
+                ":monthbill": bill,
+            },
             ReturnValues="UPDATED_NEW",
         )
     except ClientError as err:
@@ -292,8 +272,8 @@ def make_report(s3_client, s3_bucket, s3_key, year, data):
                 chart = workbook.add_chart({"type": "column"})
                 chart.add_series(
                     {
-                        "categories": [f"{year}", 0, 2, 0, 15],
-                        "values": [f"{year}", 1 + item, 2, 1 + item, 15],
+                        "categories": [f"{year}", 0, 2, 0, 13],
+                        "values": [f"{year}", 1 + item, 2, 1 + item, 13],
                         "name": f"{df['Project'].values[item]}",
                         "line": {"color": "red"},
                     }
@@ -330,7 +310,7 @@ def sort_data_by_month(data):
             if k == "Project" or k == "Id":
                 project_info[k] = v
             else:
-                bill[datetime.datetime.strptime(k, "%b").month] = v
+                bill[int(k)] = v
         bill = dict(sorted(bill.items()))
         for k, v in bill.items():
             project_info[k] = float(v)
@@ -339,7 +319,7 @@ def sort_data_by_month(data):
     return sorted_data
 
 
-def sns_notification(sns_client, name, recipient_address, region, create=True):
+def sns_notification(sns_client, name, recipient_address, region):
 
     account_id = boto3.client("sts").get_caller_identity()["Account"]
     topic_arn = f"arn:aws:sns:{region}:{account_id}:{name}"
@@ -397,6 +377,33 @@ def publish_text_message(client, region, name, message):
         logger.exception(f"Something went wrong {e}")
 
 
+def is_what_percent_of(num_a, num_b):
+    return (num_b / 100) * num_a
+
+
+def compare_month(data, current_month):
+
+    month_to_compare = int(current_month) - 1
+    for item in data:
+        logger.info(f"{item['Project']}: Compare current month with previous")
+        logger.info(f"{item['Project']}: Current bill - {item[current_month]}")
+        logger.info(f"{item['Project']}: Previous month - {item[month_to_compare]}")
+        try:
+            compare = item[month_to_compare] + is_what_percent_of(
+                10, item[month_to_compare]
+            )
+            if item[current_month] > compare:
+                logger.info(
+                    f"{item['Project']}: The bill is grew more than 10% compared with previous month"
+                )
+            else:
+                logger.info(
+                    f"{item['Project']}: The bill is less than 10% compared with previous month"
+                )
+        except ZeroDivisionError:
+            result = 0
+
+
 def main(table_name):
 
     logger.info("Application started")
@@ -434,16 +441,16 @@ def main(table_name):
             table_name,
         )
 
-    all_data = scan_db(dynamodb_resource(), table_name)
+    sort_data = sort_data_by_month(scan_db(dynamodb_resource(), table_name))
 
-    sort_data = sort_data_by_month(all_data)
+    compare_month(sort_data, args.month)
 
     make_report(s3_client(), args.bucket_name, args.bucket_key, args.year, sort_data)
     publish_text_message(
         sns_client(),
         args.region,
         table_name,
-        f"The report has been created and uploaded to the s3",
+        "The report has been created and uploaded to the s3",
     )
     logger.info("Application finished")
 
