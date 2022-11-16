@@ -149,6 +149,9 @@ dmypy.json
 # pytype static type analyzer
 .pytype/
 
+#pip && lambda
+package/
+su-bill-report-lambda.zip
 # Cython debug symbols
 cython_debug/
 
@@ -165,3 +168,20 @@ cython_debug/
 .AppleDouble
 .LSOverride
 *.xlsx
+
+
+# tf\tg
+.*.sw?
+.idea
+terragrunt.iml
+vendor
+.terraform
+.vscode
+*.tfstate
+*.tfstate.backup
+*.out
+.terragrunt-cache
+.bundle
+.ruby-version
+.terraform.lock.hcl
+terragrunt

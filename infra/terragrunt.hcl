@@ -5,7 +5,8 @@ terraform {
       "plan",
       "import",
       "push",
-      "refresh"
+      "refresh",
+      "destroy"
     ]
     required_var_files = [
       find_in_parent_folders("common.json"),
@@ -39,6 +40,7 @@ generate "common-vars" {
   contents  = <<EOF
 variable "region" { type = string }
 variable "profile" { type = string }
+variable "img_ver" { type = string }
 EOF
 }
 
