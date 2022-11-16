@@ -50,12 +50,28 @@ def parse_args():
         help="S3 bucket key to save the report",
     )
     parsers.add_argument(
+        "--sns-topic-arn",
+        required=False,
+        type=str,
+        default=os.environ.get("SNS_TOPIC_ARN", ""),
+        action="store",
+        help="SNS topic AEN to send notification",
+    )
+    parsers.add_argument(
         "--table-name",
         required=False,
         type=str,
         default=os.environ.get("DYNAMODB_TABLE", "SU-bill"),
         action="store",
         help="The DynamoDB table name to save data",
+    )
+    parsers.add_argument(
+        "--rep-path",
+        required=False,
+        type=str,
+        default=os.environ.get("REPORT_PATH", "/tmp"),
+        action="store",
+        help="The path to save the exel report",
     )
     parsers.add_argument(
         "--month",
@@ -200,7 +216,7 @@ def put_data(dynamodb, project_name, project_id, month, bill, table):
                 "Id": project_id,
             },
             UpdateExpression="set #monthnum = :monthbill",
-            ExpressionAttributeNames={"#monthnum": month},
+            ExpressionAttributeNames={"#monthnum": str(month)},
             ExpressionAttributeValues={
                 ":monthbill": bill,
             },
@@ -249,7 +265,7 @@ def scan_db(dynamodb, table, scan_kwargs=None):
     return records
 
 
-def make_report(s3_client, s3_bucket, s3_key, year, data):
+def make_report(s3_client, s3_bucket, s3_key, year, data, report_path):
     df = pd.DataFrame(data)
 
     report_file_name = (
@@ -257,7 +273,7 @@ def make_report(s3_client, s3_bucket, s3_key, year, data):
     )
 
     try:
-        with pd.ExcelWriter(f"{report_file_name}", engine="xlsxwriter") as writer:
+        with pd.ExcelWriter(f"{report_path}/{report_file_name}", engine="xlsxwriter") as writer:
             df.to_excel(writer, sheet_name=year, index=False)
             for column in df:
                 col_idx = df.columns.get_loc(column)
@@ -287,7 +303,7 @@ def make_report(s3_client, s3_bucket, s3_key, year, data):
                 position += 2
         try:
             s3_client.upload_file(
-                report_file_name, s3_bucket, f"{s3_key}/{report_file_name}"
+                f"{report_path}/{report_file_name}", s3_bucket, f"{s3_key}/{report_file_name}"
             )
             logger.info(
                 f"The file {report_file_name} has been uploaded to the s3://{s3_bucket}/{s3_key}/{report_file_name}"
@@ -319,59 +335,13 @@ def sort_data_by_month(data):
     return sorted_data
 
 
-def sns_notification(sns_client, name, recipient_address, region):
-
-    account_id = boto3.client("sts").get_caller_identity()["Account"]
-    topic_arn = f"arn:aws:sns:{region}:{account_id}:{name}"
-    sns = sns_client
-    all_topics = sns.list_topics()
-
-    create_topic = True
-    for topic in all_topics["Topics"]:
-        if topic["TopicArn"] == topic_arn:
-            create_topic = False
-
-    if create_topic:
-        try:
-            topic = sns.create_topic(Name=name)
-            logger.info(f"The topic {name} has been created")
-        except Exception as e:
-            logger.exception(f"Something went wrong {e}")
-
-    try:
-        list_subscriptions = sns.list_subscriptions_by_topic(TopicArn=topic_arn)
-    except Exception as e:
-        logger.exception(f"Something went wrong {e}")
-
-    all_subscriptions = [
-        item["Endpoint"] for item in list_subscriptions["Subscriptions"]
-    ]
-
-    for item in recipient_address:
-        if item not in all_subscriptions:
-            try:
-                response = sns.subscribe(
-                    TopicArn=topic_arn,
-                    Protocol="email",
-                    Endpoint=item,
-                    ReturnSubscriptionArn=True,
-                )
-                logger.info(
-                    f"The email {item} has been added to the {name} topic subscriptions"
-                )
-            except Exception as e:
-                logger.exception(f"Something went wrong {e}")
-
-
-def publish_text_message(client, region, name, message):
-    account_id = boto3.client("sts").get_caller_identity()["Account"]
-    topic_arn = f"arn:aws:sns:{region}:{account_id}:{name}"
+def publish_text_message(client, topic_arn, subject, message):
 
     try:
         response = client.publish(
             TopicArn=topic_arn,
             Message=message,
-            Subject="Bill report status",
+            Subject=subject,
         )
     except Exception as e:
         logger.exception(f"Something went wrong {e}")
@@ -411,10 +381,6 @@ def main(table_name):
 
     recipient_address = ["eugene.roslyakov@sigma.software"]
 
-    notification_setting = sns_notification(
-        sns_client(), table_name, recipient_address, args.region
-    )
-
     projects_with_ids = get_projects_with_ids(dynamodb_resource(), table_name)
     date_range = get_date_range(args.year, args.month)
 
@@ -445,17 +411,19 @@ def main(table_name):
 
     compare_month(sort_data, args.month)
 
-    make_report(s3_client(), args.bucket_name, args.bucket_key, args.year, sort_data)
-    publish_text_message(
-        sns_client(),
-        args.region,
-        table_name,
-        "The report has been created and uploaded to the s3",
-    )
+
+    make_report(s3_client(), args.bucket_name, args.bucket_key, args.year, sort_data, args.rep_path)
+    if args.sns_topic_arn:
+        publish_text_message(
+            sns_client(),
+            args.sns_topic_arn,
+            "Bill report status",
+            "The report has been created and uploaded to the s3",
+        )
     logger.info("Application finished")
 
 
-if __name__ == "__main__":
+def handler(event, context):
     args = parse_args()
     TABLE_NAME = args.table_name
     exist_table = check_table_exists(dynamodb_resource(), TABLE_NAME)
@@ -465,3 +433,6 @@ if __name__ == "__main__":
         exit()
     if exist_table:
         main(TABLE_NAME)
+
+if __name__ == "__main__":
+    handler("event", "context")
