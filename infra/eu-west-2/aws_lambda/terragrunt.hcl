@@ -10,6 +10,10 @@ dependency "ecr" {
   config_path = "../aws_ecr"
 }
 
+dependency "sns" {
+  config_path = "../aws_sns"
+}
+
 dependency "policy" {
   config_path = "../aws_iam_policy"
 }
@@ -24,7 +28,8 @@ inputs = {
   timeout     = "60"
 
   create_package = false
-  image_uri      = format("%s%s", dependency.ecr.outputs.ecr_repository_url_map["su-bill-report"] ,"latest") 
+  ignore_source_code_hash = true
+  image_uri      = format("%s%s", dependency.ecr.outputs.ecr_repository_url_map["su-bill-report"] ,":latest") 
 
   package_type   = "Image"
   architectures  = ["x86_64"]
@@ -32,4 +37,8 @@ inputs = {
   attach_policies    = true
   number_of_policies = 1
   policies           = [lookup(dependency.policy.outputs.policy_name_with_arn, "su-bill-report-policy")]
+
+  environment_variables = {
+    SNS_TOPIC_ARN = dependency.sns.outputs.sns_topic["arn"]
+  }
 }
