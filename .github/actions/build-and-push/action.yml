@@ -12,11 +12,6 @@ inputs:
 runs:
   using: composite
   steps:
-    # - name: Fix docker context
-    #   run: |
-    #     perl -pi -e 's/\.\./\./g' .docker/Dockerfile
-    #   shell: bash
-
     - name: Build, tag, and push ${{ inputs.ecr_registry_url }}:${{ inputs.image_tag }} image to Amazon ECR
       run: |
         echo "#################################################"

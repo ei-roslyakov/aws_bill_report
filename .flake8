@@ -7,8 +7,6 @@ exclude =
 	log,
 	env,
 	__init__.py,
-	./rest_api_sqlite/tmp/*
-	./rest_api_csv/tmp/*
 
 max-line-length = 120
 max-complexity = 10

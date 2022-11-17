@@ -40,7 +40,6 @@ generate "common-vars" {
   contents  = <<EOF
 variable "region" { type = string }
 variable "profile" { type = string }
-variable "img_ver" { type = string }
 EOF
 }
 
