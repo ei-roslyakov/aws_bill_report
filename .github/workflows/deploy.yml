@@ -1,25 +1,23 @@
 name: iac-ci-plan
 
 on:
-  pull_request:
+  push:
+    branches: [ main ]
 
 env:
   TF_VERSION        : "1.2.8"
+  AWS_REGION        : "eu-west-2"
+  AWS_ROLE_TO_ASSUME : "arn:aws:iam::948691256895:role/gh-action"
 
 jobs:
-  prepare:
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v3
-        with:
-          fetch-depth: '0'
-      
-
-      - uses: actions/setup-python@v2
-        with:
-          python-version: "3.9"
-      
+        # with:
+        #   fetch-depth: '0'
+            
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@master
         with:
@@ -27,76 +25,28 @@ jobs:
           role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
           role-session-name: GithubActionsSession
 
-      - name: Configure aws CLI profile
-        uses: ./.github/actions/aws-configure
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      # - name: Configure aws CLI profile
+      #   uses: ./.github/actions/aws-configure
+      #   with:
+      #     aws_key_id: ${{ env.AWS_ACCESS_KEY_ID }}
+      #     aws_secret_key_id: ${{ env.AWS_SECRET_ACCESS_KEY }}
+      #     aws_default_region: ${{ env.AWS_DEFAULT_REGION }}
+      #     aws_session_token: ${{ env.AWS_SESSION_TOKEN }}
+      #     aws_profile_name: "default"
+
+      - name: Building and pushing image to registry
+        uses: ./.github/actions/build-and-push
         with:
-          aws_key_id: ${{ env.AWS_ACCESS_KEY_ID }}
-          aws_secret_key_id: ${{ env.AWS_SECRET_ACCESS_KEY }}
-          aws_default_region: ${{ env.AWS_DEFAULT_REGION }}
-          aws_session_token: ${{ env.AWS_SESSION_TOKEN }}
-          aws_profile_name: "amo"
+          ecr_registry_url: "948691256895.dkr.ecr.eu-west-2.amazonaws.com/su-bill-report"
+          image_tag: "v${{ github.run_number }}"
+          # aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          # aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      
 
 
-  plan:
-    runs-on: [self-hosted,terraform]
-    permissions:
-      id-token: write
-      contents: write
-    continue-on-error: false
-    needs: [get_changed_folder]
-    strategy:
-      matrix:
-        dir: ${{fromJSON(needs.get_changed_folder.outputs.dir)}}
-    env:
-      # https://github.com/shimataro/ssh-key-action/issues/184
-      HOME              : "/root"
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-   
-      - name: Install tf and tg
-        uses: ./.github/actions/install-tf-tg
-        with:
-          tf_version: ${{ env.TF_VERSION }}
-          tg_version: ${{ env.TG_VERSION }}
-
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@master
-        with:
-          aws-region: ${{ env.AWS_REGION }}
-          role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
-          role-session-name: GithubActionsSession
-
-      - name: Configure aws CLI profile
-        uses: ./.github/actions/aws-configure
-        with:
-          aws_key_id: ${{ env.AWS_ACCESS_KEY_ID }}
-          aws_secret_key_id: ${{ env.AWS_SECRET_ACCESS_KEY }}
-          aws_default_region: ${{ env.AWS_DEFAULT_REGION }}
-          aws_session_token: ${{ env.AWS_SESSION_TOKEN }}
-          aws_profile_name: "amo"
-
-      - uses: shimataro/ssh-key-action@v2
-        with:
-          key: ${{ secrets.TG_SSH_PRIVATE_KEY }}
-          name: id_ed25519
-          known_hosts: ${{ secrets.TG_KNOWN_HOSTS_OF_GITHUB }}
-          if_key_exists: replace
-
-      - name: Plan
-        working-directory: ${{ matrix.dir }}
-        run: |
-          echo "plan for ${{ matrix.dir }}"
-          terragrunt run-all plan --terragrunt-include-external-dependencies -out=tfplan.file
-
-      - name: Show
-        working-directory: ${{ matrix.dir }}
-        run: |
-          echo "show for ${{ matrix.dir }}"
-          terragrunt run-all show tfplan.file --terragrunt-include-external-dependencies
-
-      - name: Upload data with plan
-        working-directory: ${{ matrix.dir }}
-        run: |
-          zip -q -r data-with-plan.zip .
-          aws s3 cp data-with-plan.zip s3://${{ env.S3_BUCKET_NAME }}/${{ env.S3_BUCKET_KEY }}/${{ matrix.dir }}/${{ github.ref_name }}/data-with-plan.zip --quiet
+  
