@@ -25,7 +25,7 @@ runs:
         echo "IMAGE_NAME: ${{ inputs.ecr_repo_name }}"
         echo "IMAGE_TAG: ${{ inputs.image_tag }}"
         echo "#################################################"action.
-        docker build -t ${{ inputs.ecr_registry_url }}:${{ inputs.image_tag }}
+        docker build -t ${{ inputs.ecr_registry_url }}:${{ inputs.image_tag }} .
         docker image ls
         docker push ${{ inputs.ecr_registry_url }}:${{ inputs.image_tag }}
       shell: bash
