@@ -1,0 +1,31 @@
+name: "Build and push image"
+description: "Builds and pushes an image to a registry"
+
+inputs:
+  ecr_registry_url:
+    description: "Image registry host e.g. <account_id>.dkr.ecr.<region>.amazonaws.com"
+    required: true
+  image_tag:
+    description: "Name of image tag (usually build number or commit hash)"
+    required: true
+
+runs:
+  using: composite
+  steps:
+    # - name: Fix docker context
+    #   run: |
+    #     perl -pi -e 's/\.\./\./g' .docker/Dockerfile
+    #   shell: bash
+
+    - name: Build, tag, and push ${{ inputs.ecr_registry_url }}:${{ inputs.image_tag }} image to Amazon ECR
+      run: |
+        echo "#################################################"
+        echo "Building image:"
+        echo "REPO_URL: ${{ inputs.ecr_registry_url }}"
+        echo "IMAGE_NAME: ${{ inputs.ecr_repo_name }}"
+        echo "IMAGE_TAG: ${{ inputs.image_tag }}"
+        echo "#################################################"action.
+        docker build -t ${{ inputs.ecr_registry_url }}:${{ inputs.image_tag }}
+        docker image ls
+        docker push ${{ inputs.ecr_registry_url }}:${{ inputs.image_tag }}
+      shell: bash

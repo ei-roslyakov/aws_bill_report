@@ -1,0 +1,28 @@
+name: "Install terraform and terragrunt"
+description: "Install specific terraform and terragrunt"
+
+inputs:
+  tf_version:
+    description: "Terraform version"
+    required: true
+  tg_version:
+    description: "Terragrunt version"
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Installing TF
+      run: |
+        sudo apt install zip
+        wget --quiet https://releases.hashicorp.com/terraform/${{ inputs.tf_version }}/terraform_${{ inputs.tf_version}}_linux_amd64.zip
+        unzip terraform_${{ inputs.tf_version }}_linux_amd64.zip
+        sudo mv terraform /usr/local/bin/
+      shell: bash
+
+    - name: Installing TG
+      run: |
+        wget --quiet https://github.com/gruntwork-io/terragrunt/releases/download/${{ inputs.tg_version }}/terragrunt_linux_amd64
+        sudo mv terragrunt_linux_amd64 /usr/local/bin/terragrunt
+        sudo chmod +x /usr/local/bin/terragrunt
+      shell: bash
