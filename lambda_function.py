@@ -343,6 +343,7 @@ def publish_text_message(client, topic_arn, subject, message):
             Message=message,
             Subject=subject,
         )
+        return response
     except Exception as e:
         logger.exception(f"Something went wrong {e}")
 
@@ -370,16 +371,14 @@ def compare_month(data, current_month):
                 logger.info(
                     f"{item['Project']}: The bill is less than 10% compared with previous month"
                 )
-        except ZeroDivisionError:
-            result = 0
+        except ZeroDivisionError as e:
+            logger.exception(f"Something went wrong {e}")
 
 
 def main(table_name):
 
     logger.info("Application started")
     args = parse_args()
-
-    recipient_address = ["eugene.roslyakov@sigma.software"]
 
     projects_with_ids = get_projects_with_ids(dynamodb_resource(), table_name)
     date_range = get_date_range(args.year, args.month)
@@ -411,7 +410,6 @@ def main(table_name):
 
     compare_month(sort_data, args.month)
 
-
     make_report(s3_client(), args.bucket_name, args.bucket_key, args.year, sort_data, args.rep_path)
     if args.sns_topic_arn:
         publish_text_message(
@@ -433,6 +431,7 @@ def handler(event, context):
         exit()
     if exist_table:
         main(TABLE_NAME)
+
 
 if __name__ == "__main__":
     handler("event", "context")
