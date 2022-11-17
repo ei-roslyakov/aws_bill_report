@@ -273,7 +273,9 @@ def make_report(s3_client, s3_bucket, s3_key, year, data, report_path):
     )
 
     try:
-        with pd.ExcelWriter(f"{report_path}/{report_file_name}", engine="xlsxwriter") as writer:
+        with pd.ExcelWriter(
+            f"{report_path}/{report_file_name}", engine="xlsxwriter"
+        ) as writer:
             df.to_excel(writer, sheet_name=year, index=False)
             for column in df:
                 col_idx = df.columns.get_loc(column)
@@ -303,11 +305,20 @@ def make_report(s3_client, s3_bucket, s3_key, year, data, report_path):
                 position += 2
         try:
             s3_client.upload_file(
-                f"{report_path}/{report_file_name}", s3_bucket, f"{s3_key}/{report_file_name}"
+                f"{report_path}/{report_file_name}",
+                s3_bucket,
+                f"{s3_key}/{report_file_name}",
+            )
+            s3_url = s3_client.generate_presigned_url(
+                ClientMethod="get_object",
+                Params={"Bucket": s3_bucket, "Key": f"{s3_key}/{report_file_name}"},
+                ExpiresIn=3600,  # one hour in seconds, increase if needed
             )
             logger.info(
                 f"The file {report_file_name} has been uploaded to the s3://{s3_bucket}/{s3_key}/{report_file_name}"
             )
+
+            return s3_url
         except Exception as e:
             logger.exception(
                 f"Something went wrong with uploading file {report_file_name}: {e}"
@@ -352,7 +363,7 @@ def is_what_percent_of(num_a, num_b):
     return (num_b / 100) * num_a
 
 
-def compare_month(data, current_month):
+def compare_month(data, current_month, sns_topic_arn, sns_client, s3url):
 
     month_to_compare = int(current_month) - 1
     for item in data:
@@ -367,6 +378,15 @@ def compare_month(data, current_month):
                 logger.info(
                     f"{item['Project']}: The bill is grew more than 10% compared with previous month"
                 )
+                if sns_topic_arn:
+                    publish_text_message(
+                        sns_client,
+                        sns_topic_arn,
+                        f"The Bill for the {item['Project']} project has grown.",
+                        f"""The Bill for the {item['Project']} project has grown more than 10% compared with previous month.\n
+                        Current bill - {item[current_month]}, Previous month - {item[month_to_compare]}.\n
+                        Please check the report via {s3url}"""
+                    )
             else:
                 logger.info(
                     f"{item['Project']}: The bill is less than 10% compared with previous month"
@@ -408,15 +428,21 @@ def main(table_name):
 
     sort_data = sort_data_by_month(scan_db(dynamodb_resource(), table_name))
 
-    compare_month(sort_data, args.month)
-
-    make_report(s3_client(), args.bucket_name, args.bucket_key, args.year, sort_data, args.rep_path)
+    s3url = make_report(
+        s3_client(),
+        args.bucket_name,
+        args.bucket_key,
+        args.year,
+        sort_data,
+        args.rep_path,
+    )
+    compare_month(sort_data, args.month, args.sns_topic_arn, sns_client(), s3url)
     if args.sns_topic_arn:
         publish_text_message(
             sns_client(),
             args.sns_topic_arn,
             "Bill report status",
-            "The report has been created and uploaded to the s3",
+            f"The report has been created and uploaded to the s3.\n You can download it via url: {s3url}",
         )
     logger.info("Application finished")
 
