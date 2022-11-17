@@ -8,7 +8,7 @@ exclude =
 	env,
 	__init__.py,
 
-max-line-length = 120
+max-line-length = 140
 max-complexity = 10
 filename = *.py
 format = default

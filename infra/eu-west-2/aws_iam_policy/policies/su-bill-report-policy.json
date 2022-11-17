@@ -18,6 +18,12 @@
         "Action": "sts:AssumeRole",
         "Resource": "*",
         "Effect": "Allow"
-    }
+      },
+      {
+        "Sid": "Stmt1668679846347",
+        "Action": "sns:*",
+        "Effect": "Allow",
+        "Resource": "*"
+      }
     ]
   }
