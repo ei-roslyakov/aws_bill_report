@@ -11,6 +11,8 @@ inputs = {
     "su-bill-report",
   ]
 
+  image_tag_mutability = "MUTABLE"
+
   tags = {
     Project = "SU"
   }
