@@ -46,7 +46,7 @@ jobs:
         uses: ./.github/actions/build-and-push
         with:
           ecr_registry_url: "948691256895.dkr.ecr.eu-west-2.amazonaws.com/su-bill-report"
-          image_tag: "v${{ github.run_number }}"
+          image_tag: "v-${{ github.run_number }}"
           # aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           # aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
