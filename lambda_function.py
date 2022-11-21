@@ -366,33 +366,34 @@ def is_what_percent_of(num_a, num_b):
 def compare_month(data, current_month, sns_topic_arn, sns_client, s3url):
 
     month_to_compare = int(current_month) - 1
-    for item in data:
-        logger.info(f"{item['Project']}: Compare current month with previous")
-        logger.info(f"{item['Project']}: Current bill - {item[current_month]}")
-        logger.info(f"{item['Project']}: Previous month - {item[month_to_compare]}")
-        try:
-            compare = item[month_to_compare] + is_what_percent_of(
-                10, item[month_to_compare]
+    print(month_to_compare)
+    try:
+        for item in data:
+            logger.info(f"{item['Project']}: Compare current month with previous")
+            logger.info(f"{item['Project']}: Current bill - {item[current_month]}")
+            logger.info(f"{item['Project']}: Previous month - {item[month_to_compare]}")
+        compare = item[month_to_compare] + is_what_percent_of(
+            10, item[month_to_compare]
+        )
+        if item[current_month] > compare:
+            logger.info(
+                f"{item['Project']}: The bill is grew more than 10% compared with previous month"
             )
-            if item[current_month] > compare:
-                logger.info(
-                    f"{item['Project']}: The bill is grew more than 10% compared with previous month"
+            if sns_topic_arn:
+                publish_text_message(
+                    sns_client,
+                    sns_topic_arn,
+                    f"The Bill for the {item['Project']} project has grown.",
+                    f"""The Bill for the {item['Project']} project has grown more than 10% compared with previous month.\n
+                    Current bill - {item[current_month]}, Previous month - {item[month_to_compare]}.\n
+                    Please check the report via {s3url}"""
                 )
-                if sns_topic_arn:
-                    publish_text_message(
-                        sns_client,
-                        sns_topic_arn,
-                        f"The Bill for the {item['Project']} project has grown.",
-                        f"""The Bill for the {item['Project']} project has grown more than 10% compared with previous month.\n
-                        Current bill - {item[current_month]}, Previous month - {item[month_to_compare]}.\n
-                        Please check the report via {s3url}"""
-                    )
-            else:
-                logger.info(
-                    f"{item['Project']}: The bill is less than 10% compared with previous month"
-                )
-        except ZeroDivisionError as e:
-            logger.exception(f"Something went wrong {e}")
+        else:
+            logger.info(
+                f"{item['Project']}: The bill is less than 10% compared with previous month"
+            )
+    except Exception as e:
+        logger.exception(f"Something went wrong {e}")
 
 
 def main(table_name):
