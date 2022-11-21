@@ -4,7 +4,7 @@
 
 ## How to use.
 
-To use it, a DevOps engineer needs to apply the CloudFormation template that creates an IAM role that grants access to the billing from the root AWS account with id 062261762656 (use this id as variable AccID).
+To use it, a DevOps engineer needs to apply the CloudFormation template that creates an IAM role that grants access to the billing from the root AWS account (use id as variable AccID).
 
 The lambda assumes the role _‘su-get-bill-data-access’_ and gets a bill once per month.
 
