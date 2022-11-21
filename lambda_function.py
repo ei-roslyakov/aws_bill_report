@@ -61,7 +61,7 @@ def parse_args():
         "--table-name",
         required=False,
         type=str,
-        default=os.environ.get("DYNAMODB_TABLE", "SU-bill"),
+        default=os.environ.get("DYNAMODB_TABLE", "su-bill-report"),
         action="store",
         help="The DynamoDB table name to save data",
     )
@@ -449,7 +449,7 @@ def main(table_name):
 
 def handler(event, context):
     args = parse_args()
-    TABLE_NAME = args.table_name
+    TABLE_NAME = f"{args.table_name}-{args.year}"
     exist_table = check_table_exists(dynamodb_resource(), TABLE_NAME)
     if not exist_table:
         create_table(dynamodb_resource(), TABLE_NAME)
