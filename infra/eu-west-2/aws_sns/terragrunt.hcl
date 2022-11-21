@@ -7,7 +7,7 @@ terraform {
 }
 
 inputs = {
-  name = "bill"
+  name = "su-bill-report"
 
   subscribers = {
     opsgenie = {

@@ -52,8 +52,8 @@ remote_state {
     if_exists = "overwrite_terragrunt"
   }
   config = {
-    bucket  = "rei-tf-backend"
-    key     = "bill/${path_relative_to_include()}/terraform.tfstate"
+    bucket  = "su-bill-report"
+    key     = "tfstate/${path_relative_to_include()}/terraform.tfstate"
     profile = "${local.common.profile}"
     region  = "${local.common.region}"
   }

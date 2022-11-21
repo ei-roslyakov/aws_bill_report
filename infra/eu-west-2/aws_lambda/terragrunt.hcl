@@ -6,6 +6,10 @@ terraform {
   source = "git::ssh://git@github.com/terraform-aws-modules/terraform-aws-lambda"
 }
 
+dependencies {
+  paths = ["../aws_ecr", "../aws_sns", "../aws_iam_policy"]
+}
+
 dependency "ecr" {
   config_path = "../aws_ecr"
 }
@@ -39,6 +43,8 @@ inputs = {
   policies           = [lookup(dependency.policy.outputs.policy_name_with_arn, "su-bill-report-policy")]
 
   environment_variables = {
-    SNS_TOPIC_ARN = dependency.sns.outputs.sns_topic["arn"]
+    SNS_TOPIC_ARN   = dependency.sns.outputs.sns_topic["arn"],
+    S3_BUCKET_NAME  = "su-bill-report",
+    S3_BUCKET_KEY   = "bill-report"
   }
 }

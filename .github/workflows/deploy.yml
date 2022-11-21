@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
 
 env:
-  AWS_REGION          : "eu-west-2"
-  AWS_ROLE_TO_ASSUME  : "arn:aws:iam::948691256895:role/gh-action"
-  ECR_REGISTRY_URL    : "948691256895.dkr.ecr.eu-west-2.amazonaws.com/su-bill-report"
+  AWS_REGION          : "us-east-1"
+  AWS_ROLE_TO_ASSUME  : "arn:aws:iam::062261762656:role/su-bill-report-role"
+  ECR_REGISTRY_URL    : "062261762656.dkr.ecr.us-east-1.amazonaws.com/su-bill-report"
   LAMBDA_FUNC_NAME    : "su-bill-report-lambda"
 
 jobs:
