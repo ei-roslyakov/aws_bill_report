@@ -5,7 +5,7 @@ on:
 
 env:
   AWS_REGION          : "us-east-1"
-  AWS_ROLE_TO_ASSUME  : "arn:aws:iam::062261762656:role/su-bill-report-role"
+  AWS_ROLE_TO_ASSUME  : "arn:aws:iam::062261762656:role/su-ghaction-bill-report-role"
   ECR_REGISTRY_URL    : "062261762656.dkr.ecr.us-east-1.amazonaws.com/su-bill-report"
   LAMBDA_FUNC_NAME    : "su-bill-report-lambda"
 
