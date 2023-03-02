@@ -26,7 +26,7 @@ inputs = {
   function_name = "su-bill-report-lambda"
   description   = "The lambda to get bill data"
   handler       = "lambda_function.main"
-  runtime       = "python3.8"
+  runtime       = "python3.9"
 
   memory_size = "1024"
   timeout     = "60"
